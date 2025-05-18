@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Snake Robótica</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Orbitron', sans-serif;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+      color: #00ffcc;
+      text-align: center;
+    }
+    h1 {
+      margin: 10px 0;
+      font-size: 2em;
+    }
+    canvas {
+      border: 3px solid #00ffcc;
+      background-color: #111;
+      display: block;
+      margin: 10px auto;
+      box-shadow: 0 0 15px #00ffcc;
+    }
+    #ui {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 1em;
+      border: none;
+      border-radius: 4px;
+    }
+    input {
+      width: 200px;
+    }
+    button {
+      background-color: #00ffcc;
+      color: #000;
+      cursor: pointer;
+    }
+    #leaderboard, #scoreBoard {
+      margin: 20px auto;
+      width: 300px;
+      background-color: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      box-shadow: 0 0 10px #00ffcc;
+      padding: 10px;
+    }
+    #leaderboard h3, #scoreBoard h3 {
+      margin-top: 0;
+    }
+    #status {
+      font-size: 1.2em;
+      margin-top: 10px;
+    }
+    #scoreCurrent {
+      font-size: 1.2em;
+      margin-top: 10px;
+      color: #00ffaa;
+    }
+    #viewCount {
+      margin-top: 15px;
+      font-size: 0.9em;
+      color: #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧠 Snake Robótica Tecnológica</h1>
+  <div id="ui">
+    <input type="text" id="playerName" placeholder="Ingresa tu nombre" />
+    <button onclick="startGame()">▶ Jugar</button>
+  </div>
+  <canvas id="game" width="400" height="400"></canvas>
+  <div id="scoreCurrent">Puntaje: 0</div>
+  <div id="status"></div>
+  <div id="leaderboard">
+    <h3>📋 Top 20 Jugadores</h3>
+    <ul id="scoreList"></ul>
+  </div>
+  <div id="viewCount">
+    📈 Visitantes al sitio: <span id="visits">0</span>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const box = 20;
+    let snake = [];
+    let direction = "RIGHT";
+    let food;
+    let gameLoop;
+    let gameOver = false;
+    let score = 0;
+    let playerName = "";
+
+    // Audio efectos
+    const eatSound = new Audio(URL.createObjectURL(new Blob([new Uint8Array([82,73,70,70,36,0,0,0,87,65,86,69,102,109,116,32,16,0,0,0,1,0,1,0,68,172,0,0,68,172,0,0,1,0,8,0,100,97,116,97,0,0,0,0])], { type: 'audio/wav' })));
+
+    // Simulación visitas (puedes conectar con API real luego)
+    let views = localStorage.getItem('viewCount') || 0;
+    views++;
+    localStorage.setItem('viewCount', views);
+    document.getElementById("visits").textContent = views;
+
+    document.addEventListener("keydown", changeDirection);
+
+    function startGame() {
+      playerName = document.getElementById("playerName").value || "Anon";
+      clearInterval(gameLoop);
+      snake = [{ x: 9 * box, y: 10 * box }];
+      direction = "RIGHT";
+      food = spawnFood();
+      gameOver = false;
+      score = 0;
+      updateScore();
+      document.getElementById("status").textContent = "";
+      gameLoop = setInterval(draw, 150);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Dibujar comida
+      ctx.fillStyle = "red";
+      ctx.beginPath();
+      ctx.arc(food.x + box/2, food.y + box/2, box/2 - 2, 0, 2 * Math.PI);
+      ctx.fill();
+
+      // Dibujar víbora robótica (círculos metálicos)
+      snake.forEach((segment, index) => {
+        ctx.fillStyle = index === 0 ? "#00ffcc" : "#66ffff";
+        ctx.beginPath();
+        ctx.arc(segment.x + box/2, segment.y + box/2, box/2 - 2, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      let headX = snake[0].x;
+      let headY = snake[0].y;
+
+      if (direction === "LEFT") headX -= box;
+      if (direction === "RIGHT") headX += box;
+      if (direction === "UP") headY -= box;
+      if (direction === "DOWN") headY += box;
+
+      if (
+        headX < 0 || headY < 0 ||
+        headX >= canvas.width || headY >= canvas.height ||
+        collision(headX, headY, snake)
+      ) {
+        clearInterval(gameLoop);
+        document.getElementById("status").textContent = "🛑 Game Over";
+        saveScore();
+        return;
+      }
+
+      let newHead = { x: headX, y: headY };
+
+      if (headX === food.x && headY === food.y) {
+        eatSound.play();
+        score++;
+        updateScore();
+        food = spawnFood();
+      } else {
+        snake.pop();
+      }
+      snake.unshift(newHead);
+    }
+
+    function changeDirection(event) {
+      const key = event.key;
+      if (key === "ArrowLeft" && direction !== "RIGHT") direction = "LEFT";
+      else if (key === "ArrowUp" && direction !== "DOWN") direction = "UP";
+      else if (key === "ArrowRight" && direction !== "LEFT") direction = "RIGHT";
+      else if (key === "ArrowDown" && direction !== "UP") direction = "DOWN";
+    }
+
+    function collision(x, y, array) {
+      return array.some((segment) => segment.x === x && segment.y === y);
+    }
+
+    function spawnFood() {
+      return {
+        x: Math.floor(Math.random() * (canvas.width / box)) * box,
+        y: Math.floor(Math.random() * (canvas.height / box)) * box,
+      };
+    }
+
+    function updateScore() {
+      document.getElementById("scoreCurrent").textContent = `Puntaje: ${score}`;
+    }
+
+    function saveScore() {
+      let records = JSON.parse(localStorage.getItem("snakeScores") || "[]");
+      records.push({ name: playerName, score: score });
+      records.sort((a, b) => b.score - a.score);
+      records = records.slice(0, 20);
+      localStorage.setItem("snakeScores", JSON.stringify(records));
+      renderScores(records);
+    }
+
+    function renderScores(data) {
+      const ul = document.getElementById("scoreList");
+      ul.innerHTML = "";
+      data.forEach(player => {
+        const li = document.createElement("li");
+        li.textContent = `${player.name} - ${player.score}`;
+        ul.appendChild(li);
+      });
+    }
+
+    renderScores(JSON.parse(localStorage.getItem("snakeScores") || "[]"));
+  </script>
+</body>
+</html>
