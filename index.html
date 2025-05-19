@@ -1,21 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Snake Robótica</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Snake Robótica Tecnológica</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron&display=swap" rel="stylesheet">
   <style>
     body {
       margin: 0;
       font-family: 'Orbitron', sans-serif;
-      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-      color: #00ffcc;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      color: #00ffff;
       text-align: center;
     }
     h1 {
-      margin: 10px 0;
-      font-size: 2em;
+      margin-top: 20px;
+      font-size: 2.5em;
+      color: #00ffcc;
+      text-shadow: 0 0 5px #00ffff;
     }
     canvas {
       border: 3px solid #00ffcc;
@@ -23,15 +25,15 @@
       display: block;
       margin: 10px auto;
       box-shadow: 0 0 15px #00ffcc;
-      max-width: 100%;
+      max-width: 95vw;
       height: auto;
     }
     #ui {
       display: flex;
       justify-content: center;
-      gap: 10px;
       flex-wrap: wrap;
-      margin-top: 10px;
+      gap: 10px;
+      margin: 10px;
     }
     input, button {
       padding: 10px;
@@ -46,31 +48,57 @@
       background-color: #00ffcc;
       color: #000;
       cursor: pointer;
+      transition: background 0.3s;
     }
-    #leaderboard, #scoreBoard {
-      margin: 20px auto;
-      width: 300px;
-      background-color: rgba(0,0,0,0.3);
-      border-radius: 8px;
-      box-shadow: 0 0 10px #00ffcc;
-      padding: 10px;
+    button:hover {
+      background-color: #00ffaa;
     }
-    #leaderboard h3, #scoreBoard h3 {
-      margin-top: 0;
-    }
-    #status {
-      font-size: 1.2em;
-      margin-top: 10px;
-    }
-    #scoreCurrent {
-      font-size: 1.2em;
-      margin-top: 10px;
+    #scoreCurrent, #status {
+      font-size: 1.3em;
+      margin: 10px;
       color: #00ffaa;
     }
-    #viewCount {
+    #leaderboard {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 15px;
+      border-radius: 10px;
+      margin: 20px auto;
+      width: 90%;
+      max-width: 400px;
+      color: #00ffff;
+      box-shadow: 0 0 10px #00cccc;
+    }
+    #leaderboard h3 {
+      margin-top: 0;
+    }
+    #scoreList {
+      list-style: none;
+      padding: 0;
+      text-align: left;
+    }
+    #scoreList li {
+      padding: 5px;
+      border-bottom: 1px solid #00cccc;
+    }
+    #touchControls {
+      display: none;
       margin-top: 15px;
-      font-size: 0.9em;
-      color: #ccc;
+    }
+    .btn-touch {
+      background-color: rgba(0,255,255,0.2);
+      border: 2px solid #00ffcc;
+      color: #00ffcc;
+      padding: 10px 20px;
+      font-size: 1.2em;
+      margin: 5px;
+      border-radius: 10px;
+    }
+    @media (max-width: 600px) {
+      #touchControls {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
     }
   </style>
 </head>
@@ -83,136 +111,168 @@
   <canvas id="game" width="400" height="400"></canvas>
   <div id="scoreCurrent">Puntaje: 0</div>
   <div id="status"></div>
+
+  <div id="touchControls">
+    <button class="btn-touch" onclick="setDirection('UP')">⬆ Arriba</button>
+    <div>
+      <button class="btn-touch" onclick="setDirection('LEFT')">⬅ Izquierda</button>
+      <button class="btn-touch" onclick="setDirection('RIGHT')">➡ Derecha</button>
+    </div>
+    <button class="btn-touch" onclick="setDirection('DOWN')">⬇ Abajo</button>
+  </div>
+
   <div id="leaderboard">
     <h3>📋 Top 20 Jugadores</h3>
     <ul id="scoreList"></ul>
-  </div>
-  <div id="viewCount">
-    📈 Visitantes al sitio: <span id="visits">0</span>
   </div>
 
   <script>
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const box = 20;
-    let snake = [];
+    let snake = [{ x: 9 * box, y: 10 * box }];
     let direction = "RIGHT";
-    let food;
-    let gameLoop;
-    let gameOver = false;
+    let food = {};
     let score = 0;
+    let game;
     let playerName = "";
+    let gameOver = false;
 
     // Sonidos
-    const eatSound = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAABCxAgAEABAAZGF0YQcAAA=="); // Sonido simple base64
-    const deadSound = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAABCxAgAEABAAZGF0YQcAAA==");
+    const eatSound = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEA...==");
+    const dieSound = new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEA...==");
 
-    let views = localStorage.getItem('viewCount') || 0;
-    views++;
-    localStorage.setItem('viewCount', views);
-    document.getElementById("visits").textContent = views;
-
-    document.addEventListener("keydown", changeDirection);
-
-    function startGame() {
-      playerName = document.getElementById("playerName").value || "Anon";
-      clearInterval(gameLoop);
-      snake = [{ x: 9 * box, y: 10 * box }];
-      direction = "RIGHT";
-      food = spawnFood();
-      gameOver = false;
-      score = 0;
-      document.getElementById("status").textContent = "";
-      updateScore();
-      gameLoop = setInterval(draw, 120);
+    function drawHead(x, y) {
+      ctx.fillStyle = "#00ffff";
+      ctx.beginPath();
+      ctx.arc(x + box/2, y + box/2, box/2, 0, 2 * Math.PI);
+      ctx.fill();
     }
 
-    function spawnFood() {
-      return {
-        x: Math.floor(Math.random() * 20) * box,
-        y: Math.floor(Math.random() * 20) * box
+    function drawBody(x, y) {
+      ctx.fillStyle = "#00ffaa";
+      ctx.beginPath();
+      ctx.moveTo(x + box / 2, y);
+      ctx.lineTo(x + box, y + box);
+      ctx.lineTo(x, y + box);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function drawFood(x, y) {
+      ctx.fillStyle = "#ff00cc";
+      ctx.beginPath();
+      ctx.moveTo(x + box / 2, y);
+      ctx.lineTo(x + box, y + box / 2);
+      ctx.lineTo(x + box / 2, y + box);
+      ctx.lineTo(x, y + box / 2);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function randomFood() {
+      food = {
+        x: Math.floor(Math.random() * 19) * box,
+        y: Math.floor(Math.random() * 19) * box,
       };
     }
 
-    function changeDirection(e) {
-      const key = e.keyCode;
-      if (key === 37 && direction !== "RIGHT") direction = "LEFT";
-      else if (key === 38 && direction !== "DOWN") direction = "UP";
-      else if (key === 39 && direction !== "LEFT") direction = "RIGHT";
-      else if (key === 40 && direction !== "UP") direction = "DOWN";
-    }
+    document.addEventListener("keydown", function (e) {
+      if (e.keyCode === 37 && direction !== "RIGHT") direction = "LEFT";
+      else if (e.keyCode === 38 && direction !== "DOWN") direction = "UP";
+      else if (e.keyCode === 39 && direction !== "LEFT") direction = "RIGHT";
+      else if (e.keyCode === 40 && direction !== "UP") direction = "DOWN";
+    });
 
-    function updateScore() {
-      document.getElementById("scoreCurrent").textContent = "Puntaje: " + score;
+    function setDirection(dir) {
+      if (dir === "LEFT" && direction !== "RIGHT") direction = "LEFT";
+      if (dir === "UP" && direction !== "DOWN") direction = "UP";
+      if (dir === "RIGHT" && direction !== "LEFT") direction = "RIGHT";
+      if (dir === "DOWN" && direction !== "UP") direction = "DOWN";
     }
 
     function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Dibujar comida (estrella)
-      ctx.fillStyle = "#ff0";
-      ctx.beginPath();
-      ctx.moveTo(food.x + box/2, food.y);
-      for (let i = 1; i < 5; i++) {
-        ctx.lineTo(food.x + box/2 + box/2 * Math.cos(i * 1.2566), food.y + box/2 * Math.sin(i * 1.2566));
+      drawFood(food.x, food.y);
+
+      for (let i = 0; i < snake.length; i++) {
+        if (i === 0) drawHead(snake[i].x, snake[i].y);
+        else drawBody(snake[i].x, snake[i].y);
       }
-      ctx.closePath();
-      ctx.fill();
 
-      // Dibujar víbora
-      snake.forEach((seg, i) => {
-        if (i === 0) {
-          ctx.fillStyle = "#0ff";
-          ctx.beginPath();
-          ctx.arc(seg.x + box / 2, seg.y + box / 2, box / 2, 0, 2 * Math.PI);
-          ctx.fill();
-        } else {
-          ctx.fillStyle = "#0f0";
-          ctx.beginPath();
-          ctx.moveTo(seg.x + box / 2, seg.y);
-          ctx.lineTo(seg.x, seg.y + box);
-          ctx.lineTo(seg.x + box, seg.y + box);
-          ctx.closePath();
-          ctx.fill();
-        }
-      });
+      let snakeX = snake[0].x;
+      let snakeY = snake[0].y;
 
-      let head = { x: snake[0].x, y: snake[0].y };
+      if (direction === "LEFT") snakeX -= box;
+      if (direction === "UP") snakeY -= box;
+      if (direction === "RIGHT") snakeX += box;
+      if (direction === "DOWN") snakeY += box;
 
-      if (direction === "LEFT") head.x -= box;
-      if (direction === "UP") head.y -= box;
-      if (direction === "RIGHT") head.x += box;
-      if (direction === "DOWN") head.y += box;
-
-      if (head.x === food.x && head.y === food.y) {
+      if (snakeX === food.x && snakeY === food.y) {
         score++;
-        updateScore();
-        food = spawnFood();
         eatSound.play();
+        randomFood();
       } else {
         snake.pop();
       }
 
-      if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height || snake.some(s => s.x === head.x && s.y === head.y)) {
-        clearInterval(gameLoop);
-        gameOver = true;
-        deadSound.play();
-        document.getElementById("status").textContent = "🚫 Juego terminado. Puntaje: " + score;
+      const newHead = { x: snakeX, y: snakeY };
+
+      if (
+        snakeX < 0 || snakeX >= canvas.width ||
+        snakeY < 0 || snakeY >= canvas.height ||
+        collision(newHead, snake)
+      ) {
+        clearInterval(game);
+        dieSound.play();
+        document.getElementById("status").textContent = "❌ Juego terminado. Puntaje: " + score;
         saveScore();
         return;
       }
 
-      snake.unshift(head);
+      snake.unshift(newHead);
+      document.getElementById("scoreCurrent").textContent = "Puntaje: " + score;
+    }
+
+    function collision(head, array) {
+      for (let i = 0; i < array.length; i++) {
+        if (head.x === array[i].x && head.y === array[i].y) return true;
+      }
+      return false;
+    }
+
+    function startGame() {
+      playerName = document.getElementById("playerName").value || "Anónimo";
+      snake = [{ x: 9 * box, y: 10 * box }];
+      direction = "RIGHT";
+      score = 0;
+      document.getElementById("status").textContent = "";
+      randomFood();
+      if (game) clearInterval(game);
+      game = setInterval(draw, 120);
     }
 
     function saveScore() {
-      let scores = JSON.parse(localStorage.getItem("snakeScores") || "[]");
-      scores.push({ name: playerName, score });
-      scores = scores.sort((a, b) => b.score - a.score).slice(0, 20);
-      localStorage.setItem("snakeScores", JSON.stringify(scores));
-      const list = document.getElementById("scoreList");
-      list.innerHTML = scores.map(s => `<li>${s.name}: ${s.score}</li>`).join("");
+      const record = JSON.parse(localStorage.getItem("snakeRecords") || "[]");
+      record.push({ name: playerName, score });
+      record.sort((a, b) => b.score - a.score);
+      localStorage.setItem("snakeRecords", JSON.stringify(record.slice(0, 20)));
+      updateLeaderboard();
     }
+
+    function updateLeaderboard() {
+      const list = document.getElementById("scoreList");
+      const record = JSON.parse(localStorage.getItem("snakeRecords") || "[]");
+      list.innerHTML = "";
+      for (const r of record) {
+        const li = document.createElement("li");
+        li.textContent = `${r.name}: ${r.score}`;
+        list.appendChild(li);
+      }
+    }
+
+    updateLeaderboard();
   </script>
 </body>
 </html>
